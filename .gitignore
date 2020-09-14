@@ -1,1 +1,4 @@
 captures/*.pcapng
+captures/*.plt_stats
+pickles
+captures/out.txt

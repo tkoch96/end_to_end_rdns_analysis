@@ -179,17 +179,19 @@ class E2E_Analyzer:
 			browsing_time = self.active_browsing_times[capture_key]
 			try:
 				total_plt = sum([page_load['load_event_end'] for page_load in self.plt_stats[capture_key]])
+				n_page_loads = len(self.plt_stats[capture_key])
 			except KeyError:
 				total_plt = 'NA'
+				n_page_loads = 'NA'
 			# Tabulate all DNS latency, and all root DNS latency incurred by client
 			latencies = self.get_latencies_from_queries(capture_key)
 
 			total_client_latency = np.sum([el["latency"] for el in latencies['client']])
 			total_root_latency = np.sum([el["latency"] for el in latencies["resolver"] if el["to_root"]])
 			total_valid_root_latency = np.sum([el["latency"] for el in latencies['resolver'] if el['to_root'] and el['valid_tld']])
-			out_stats = "{} {} {} {} {} {} {} {} {} {} {}\n".format(capture_key, total_time, browsing_time, n_queries_to_outside, 
+			out_stats = "{} {} {} {} {} {} {} {} {} {} {} {}\n".format(capture_key, total_time, browsing_time, n_queries_to_outside, 
 				n_root_queries, n_valid_tld_root_queries, n_queries_client, n_answers_client, 
-				total_client_latency, total_valid_root_latency, total_plt)
+				total_client_latency, total_valid_root_latency, total_plt, n_page_loads)
 			with open(os.path.join(self.captures_dir, "out.txt"), 'a') as f:
 				f.write(out_stats)
 
@@ -377,6 +379,6 @@ if __name__ == "__main__":
 			"090920": 1*60 + 37,
 		}
 
-	e2ea = E2E_Analyzer(skip_load_captures=False, active_browsing_times=active_browsing_times,
+	e2ea = E2E_Analyzer(skip_load_captures=True, active_browsing_times=active_browsing_times,
 		original_captures_dir="/mnt/c/users/tomko/AppData/Local/Temp")
 	e2ea.run()
