@@ -1,10 +1,8 @@
 import glob, os, numpy as np, re, datetime, pickle, json
-import matplotlib.pyplot as plt
-from helpers import *
 from subprocess import call, check_output
 
 class E2E_Analyzer:
-	def __init__(self, skip_load_captures=False, original_captures_dir=None):
+	def __init__(self, skip_load_captures=False, original_captures_dir=None, active_browsing_times={}):
 
 		self.data_dir = "../data"
 		self.pkl_dir = "../pickles"
@@ -379,6 +377,6 @@ if __name__ == "__main__":
 			"090920": 1*60 + 37,
 		}
 
-	e2ea = E2E_Analyzer(skip_load_captures=True, active_browsing_times=active_browsing_times,
+	e2ea = E2E_Analyzer(skip_load_captures=False, active_browsing_times=active_browsing_times,
 		original_captures_dir="/mnt/c/users/tomko/AppData/Local/Temp")
 	e2ea.run()
