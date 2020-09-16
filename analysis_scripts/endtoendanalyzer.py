@@ -324,8 +324,11 @@ class E2E_Analyzer:
 				except:
 					continue
 				_id = plt_obj['id']
-				try: ids_seen[_id]; continue
-				except KeyError: pass
+				try: 
+					ids_seen[_id];
+					continue
+				except KeyError: 
+					ids_seen[_id] = None
 				t_report = plt_obj['timestamp'] / 1000
 				capture_key = datetime.datetime.fromtimestamp(
 					float(t_report)
@@ -368,15 +371,21 @@ if __name__ == "__main__":
 			"082920": 20,
 			"083020": 0,
 			"083120": 22+ 1*60 + 10 + 3*60+13,
-			"090120": 3*60 + 54, # TODO -- fill in information from other user accts
-			"090220": 3*60,
-			"090320": 1*60 + 6, 
-			"090420": 2*60 + 35,
-			"090520": 0,
-			"090620": 0,
-			"090720": 1*60 + 1,
-			"090820": 4*60 + 24,
+			"090120": 11 + 1*60 + 9 + 3*60 + 54,
+			"090220": 1*60 + 3*60,
+			"090320": 42 + 40 + 1*60 + 6, 
+			"090420": 53 + 2*60 + 35,
+			"090520": 60 + 41 + 30,
+			"090620": 49,
+			"090720": 9 + 1*60 + 1,
+			"090820": 19 + 4*60 + 24,
 			"090920": 1*60 + 37,
+			"091020": 52 + 3*60 + 43,
+			"091120": 1*60 + 17 + 3*60 + 43,
+			"091220": 9 + 27,
+			"091320": 0,
+			"091420": 1*60 + 2 + 5 + 4*60 + 16,
+			"091520": 4 + 4*60 + 54,
 		}
 
 	e2ea = E2E_Analyzer(skip_load_captures=True, active_browsing_times=active_browsing_times,
