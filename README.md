@@ -16,5 +16,6 @@ On Debian-based machines: `apt install python3 python3-numpy`.
 
 1. Place `*.pcap` and `*.pcapng` files in `captures/`
 2. Save Page Load Time statistics (saved as `*.plt_stats`) to `captures/`
-3. Run analysis: `cd end_to_end_rdns_analysis/analysis_scripts && python3 endtoendanalyzer.py`
-4. Read output: `cat end_to_end_rdns_analysis/out.txt`
+3. Save your backup file from WebTime Tracker (`webtime-tracker-backup-*.json`) to `captures/`
+4. Run analysis: `cd end_to_end_rdns_analysis/analysis_scripts && python3 endtoendanalyzer.py`
+5. Read output: `cat end_to_end_rdns_analysis/out.txt`
