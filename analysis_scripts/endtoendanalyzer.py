@@ -1,14 +1,17 @@
+#!/usr/bin/env python3
+
 import glob, os, numpy as np, re, datetime, pickle, json
 from subprocess import call, check_output
 
 class E2E_Analyzer:
-	def __init__(self, skip_load_captures=False, original_captures_dir=None, active_browsing_times={}):
+	def __init__(self, skip_load_captures=False, copy_from_original_captures_dir=True, original_captures_dir=None, active_browsing_times={}, resolver_ip=None, local_ip=None):
 
 		self.data_dir = "../data"
 		self.pkl_dir = "../pickles"
 		self.captures_dir = "../captures"
+
 		# Copy data from capture dir to processing dir
-		if True: # toggle this if you want to copy data
+		if copy_from_original_captures_dir:
 			if original_captures_dir is None:
 				raise ValueError("Set original_captures_dir to the directory where dumpcap saves pcaps, or set this check to False.")
 			original_captures_dir = original_captures_dir
@@ -88,8 +91,14 @@ class E2E_Analyzer:
 			},
 		}
 		self.root_ips = [self.root_msmt_meta[root]["ip"] for root in self.root_msmt_meta]
-		self.resolver_ip = "192.168.1.152"
-		self.local_ip = "127.0.0.1"
+
+		if resolver_ip is None or local_ip is None:
+		    print("Requires `resolver_ip` and/or `local_ip`")
+		    exit(1)
+		else:
+		    self.resolver_ip = resolver_ip
+		    self.local_ip    = local_ip
+
 		tlds = ["."]
 		with open(os.path.join(self.data_dir, "tld.txt"),'r') as f:
 			for row in f:
@@ -104,7 +113,7 @@ class E2E_Analyzer:
 	def load_captures(self):
 		if self.skip_load_captures: return
 		print("Reading captures, this may take a second.")
-		for capture_file in glob.glob(os.path.join(self.captures_dir, "*.pcapng")):
+		for capture_file in glob.glob(os.path.join(self.captures_dir, "*.pcap*")):
 			# it is assumed the capture file has only DNS traffic
 			tshark_cmd = "tshark -2 -r \"{}\" -T fields -e frame.time_epoch -e ip.src -e ip.dst -e udp.srcport -e udp.dstport -e tcp.srcport -e tcp.dstport "\
 				"-e dns.qry.name -e dns.qry.type".format(os.path.join(self.captures_dir, capture_file))
@@ -157,6 +166,7 @@ class E2E_Analyzer:
 			pass
 
 		for capture_key in sorted(list(self.queries.keys())):
+			#DEBUG: print(capture_key)
 			try:
 				self.active_browsing_times[capture_key]
 			except KeyError:
@@ -174,8 +184,19 @@ class E2E_Analyzer:
 			n_queries_to_outside = len([query for query in these_queries if query["src_ip"] == self.resolver_ip])
 			n_root_queries = len(root_queries)
 			n_valid_tld_root_queries = len(valid_tld_root_queries)
+
 			n_queries_client = len([query for query in these_queries if query["src_ip"] == self.local_ip and query["dst_port"] == 53])
-			n_answers_client = len([query for query in these_queries if query["src_ip"] == self.local_ip and query["src_port"] == 53])
+
+			# look for answers from recursive resolver to client
+			if self.local_ip == "127.0.0.1":
+			    # if the recursive resolver is running on the client
+			    # as localhost, then its response to a query will
+			    # have source ip of 127.0.0.1.
+			    local_resolver = self.local_ip
+			else:
+			    local_resolver = self.resolver_ip
+			n_answers_client = len([query for query in these_queries if query["src_ip"] == local_resolver and query["src_port"] == 53])
+
 			browsing_time = self.active_browsing_times[capture_key]
 			try:
 				total_plt = sum([page_load['load_event_end'] for page_load in self.plt_stats[capture_key]])
@@ -225,8 +246,18 @@ class E2E_Analyzer:
 			"resolver": {}
 		}
 
+		# look for answers from recursive resolver to client
+		if self.local_ip == "127.0.0.1":
+		    # if the recursive resolver is running on the client
+		    # as localhost, then its response to a query will
+		    # have source ip of 127.0.0.1.
+		    local_resolver = self.local_ip
+		else:
+		    local_resolver = self.resolver_ip
+
 		for dns_packet in self.queries[capture_key]:
 			# 4 cases
+			# DEBUG: print(dns_packet["src_ip"], self.local_ip, self.resolver_ip)
 			if dns_packet["src_ip"] == self.local_ip and dns_packet["dst_port"] == 53:
 				# outgoing client query
 				transaction_key = (dns_packet["src_ip"], dns_packet["dst_ip"], dns_packet["src_port"],
@@ -248,7 +279,7 @@ class E2E_Analyzer:
 						"to_root": False,
 						"valid_tld": dns_packet["hostname"].split('.')[-1] in self.tlds,
 					}]
-			elif dns_packet["src_ip"] == self.local_ip and dns_packet["src_port"] == 53:
+			elif dns_packet["src_ip"] == local_resolver and dns_packet["src_port"] == 53:
 				# answer to client query
 				transaction_key = (dns_packet["dst_ip"], dns_packet["src_ip"], dns_packet["dst_port"],
 					dns_packet["hostname"], dns_packet["query_type"])
@@ -373,7 +404,7 @@ if __name__ == "__main__":
 			"083120": 22+ 1*60 + 10 + 3*60+13,
 			"090120": 11 + 1*60 + 9 + 3*60 + 54,
 			"090220": 1*60 + 3*60,
-			"090320": 42 + 40 + 1*60 + 6, 
+			"090320": 42 + 40 + 1*60 + 6,
 			"090420": 53 + 2*60 + 35,
 			"090520": 60 + 41 + 30,
 			"090620": 49,
@@ -388,6 +419,58 @@ if __name__ == "__main__":
 			"091520": 4 + 4*60 + 54,
 		}
 
-	e2ea = E2E_Analyzer(skip_load_captures=True, active_browsing_times=active_browsing_times,
-		original_captures_dir="/mnt/c/users/tomko/AppData/Local/Temp")
+	# check if we have a backup file from WebTime Tracker (Options ->
+	# Backup), then parse its data and use it.
+	#
+	# unfortunately the dates are localized -- so we don't have absolute
+	# timestamps.
+	#
+	# TODO consider timezone offsets
+	#
+	# XXX this _will_ double-count if your backup files have overlap.
+	#
+	active_browsing_times_unformatted = dict()
+	webtime_tracker_files = glob.glob(os.path.join("../captures", "webtime-tracker-backup-*.json"))
+	if len(webtime_tracker_files) > 0:
+		print("../captures/webtime-tracker-backup-*.json: exists, processing files...")
+		for f in webtime_tracker_files:
+			print("%s: processing" % f)
+			# load .json file into a dictionary
+			with open(f, 'r') as json_f:
+				data = json.load(json_f)
+
+			# iterate through each domain
+			domains = data['content']['domains']
+			for domain in domains:
+				entry = domains[domain]
+				# DEBUG: print(entry)
+
+				# given a domain, iterate through each day and
+				# sum up the seconds
+				for day in entry['days']:
+					if day in active_browsing_times_unformatted:
+						active_browsing_times_unformatted[day] += entry['days'][day]['seconds']
+					else:
+						active_browsing_times_unformatted[day]  = entry['days'][day]['seconds']
+		# DEBUG: print(active_browsing_times_unformatted)
+
+		active_browsing_times = dict()
+
+		# convert our string timestamps from '2020-09-15' to '091516' in an absurd way
+		# also convert from seconds to minutes
+		for day in active_browsing_times_unformatted:
+			converted_day = "%s%s%s" % (day[5:7], day[8:10], day[2:4])
+			# DEBUG: print("old day: %s, converted day: %s" % (day, converted_day))
+
+			active_browsing_times[converted_day] = active_browsing_times_unformatted[day] / 60
+
+		print("Active browsing times (day, minutes): %s" % active_browsing_times)
+
+	e2ea = E2E_Analyzer(skip_load_captures=True,
+			    copy_from_original_captures_dir=True,
+			    active_browsing_times=active_browsing_times,
+			    original_captures_dir="/mnt/c/users/tomko/AppData/Local/Temp",
+			    resolver_ip="192.168.1.152",
+			    local_ip="127.0.0.1")
+
 	e2ea.run()
